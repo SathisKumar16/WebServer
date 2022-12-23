@@ -16,22 +16,23 @@ void setHttpHeader(char httpHeader[],char * urlroute){
 	FILE *htmlData;
        printf("\n1\n");
         if(strlen(urlroute)==1){
-      printf("error in if\n");
-        	htmlData=fopen("error.html","r");
-}
+                printf("error in if\n");
+        	htmlData=fopen("index.html","r");
+	}
         else{
-		//htmlData=fopen(r,"r");
+		htmlData=fopen(r,"r");
 		printf("\nerror in else");
-		if(htmlData!=NULL)
-                     htmlData=NULL;
+		if(htmlData==NULL)
+                     htmlData=fopen("error.html","r");
 	}
        printf("\n 2");
 	char line[120];
-	char respData[8000];
+	char respData[8000]="";
         while(fgets(line,120,htmlData)!=0){
 		printf("\n 3");
 		strcat(respData,line);
 	}
+	printf("\n%s\n",respData);
 	strcat(httpHeader, respData);
 }
 int main(void)
@@ -87,6 +88,8 @@ int main(void)
 		printf("\nThe urlroute is :%s\n",urlroute);
                 setHttpHeader(httpHeader,urlroute);
 		send(clientSocket,httpHeader,sizeof(httpHeader),0);
+                httpHeader[0]='\0';
+                strcpy(httpHeader,"HTTP/1.1 200 OK \r\n\n");
 		close(clientSocket);
 	}
 	return 0;
