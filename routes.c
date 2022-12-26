@@ -1,18 +1,8 @@
+#include "routes.h"
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
-struct Route {
-	char*  key;
-	char* value;
-
-	struct Route *left,*right;
-};
-
-struct Route * init(char* key,char* value);
-struct Route * add(struct Route * root,char* key,char* value);
-struct Route *search(struct Route * root,char* key);
-void inorder(struct Route * root);
-struct Route * init(char* key,char* value){
+struct Route * initroute(char* key,char* value){
 	struct Route *temp=(struct Route*)malloc(sizeof(struct Route));
 	temp->key=key;
 	temp->value=value;
@@ -22,7 +12,7 @@ struct Route * init(char* key,char* value){
 
 struct Route * add(struct Route * root,char* key,char* value){
 	if(root==NULL)
-		return init(key,value);
+		return initroute(key,value);
 	if(strcmp(key,root->key)==0)
 		printf("\n %s Already Exists\n",key);
 	else if(strcmp(key,root->key)>0)
