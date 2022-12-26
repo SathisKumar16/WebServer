@@ -11,15 +11,18 @@
 #include<signal.h>
 #include<sys/wait.h>
 #include "routes.h"
+#include<pthread.h>
 #define SIZE 1024
 #define BACKLOG 10
 
 struct sockaddr_in serverAddress;
+char client_msg[8000] ="";
 int serverSocket;
-
+char httpHeader[8000]="HTTP/1.1 200 OK\r\n\n";
 void report(struct sockaddr_in *serverAddress);
 void serverInit();
-
+void *handle_http_request(void* arg);
+struct Route * route;
 //MATCH THE FILE WITH THE URL
 void setHttpHeader(char httpHeader[],char * urlroute,struct Route *jk)
 {
@@ -42,6 +45,7 @@ void setHttpHeader(char httpHeader[],char * urlroute,struct Route *jk)
 		strcat(respData,line);
 
 	strcat(httpHeader, respData);
+	fclose(htmlData);
 }
 
 void serverInit()
@@ -50,7 +54,7 @@ void serverInit()
 
 	//struct sockaddr_in serverAddress;
 	serverAddress.sin_family=AF_INET;
-	serverAddress.sin_port=htons(8003);
+	serverAddress.sin_port=htons(8001);
 	serverAddress.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
 
 	bind(
@@ -67,16 +71,53 @@ void serverInit()
 	report(&serverAddress);
 }
 
+void *handle_http_request(void *arg)
+{
+	int client_Socket= *((int *)arg);
+	read(client_Socket,client_msg,8000);
+	char *method="";
+	char *urlroute="";
+	char *client_httpheader=strtok(client_msg,"\n");
+	printf("\n clienthttpheader: %s\n",client_httpheader);
+        char *clientheadtoken=strtok(client_httpheader," ");
+	int tokenflag=0;
 
+	while(clientheadtoken!=NULL)
+	{
+	        switch(tokenflag)
+		{
+			case 0:
+				method=clientheadtoken;
+			case 1:
+				urlroute=clientheadtoken;
+		}
+		clientheadtoken=strtok(NULL," ");
+                 tokenflag++;
+	}
+
+	printf("\nThe urlroute is :%s\n",urlroute);
+        if(strcmp(urlroute,"/favicon.ico")!=0){
+        	setHttpHeader(httpHeader,urlroute,route);
+		send(client_Socket,httpHeader,sizeof(httpHeader),0);
+		printf("%s\n",httpHeader);
+	}
+	//printf("%d\n",clientSocket);
+	close(client_Socket);
+
+	bzero(httpHeader,8000);
+       // httpHeader[0]='\0';
+        strcpy(httpHeader,"HTTP/1.1 200 OK \r\n\n");
+
+}
 int main(void)
 {
 	pid_t childid;
-	char httpHeader[8000]="HTTP/1.1 200 OK\r\n\n";
 
 	serverInit();
 
 	//INITIALIZING THE ROUTE
-	struct Route * route = initroute("/","index.html");
+	//struct Route *
+	 route = initroute("/","index.html");
 
 	//ADD YOUR ROUTE HERE
 	add(route,"/hi","hi.html");
@@ -84,49 +125,16 @@ int main(void)
 
 	while(1)
 	{
-		char client_msg[8000] ="";
+		client_msg[0] ='\0';
 
 	        int clientSocket =accept(serverSocket, NULL,NULL);
 
-		if((childid=fork())==0)
-		{
-			read(clientSocket,client_msg,8000);
-			printf("Client Msg  :%s\n",client_msg);
-			char *method="";
-			char *urlroute="";
-			char *client_httpheader=strtok(client_msg,"\n");
-			printf("\n clienthttpheader: %s\n",client_httpheader);
-                	char *clientheadtoken=strtok(client_httpheader," ");
-			int tokenflag=0;
+		pthread_t request_thread;
 
-			while(clientheadtoken!=NULL)
-			{
-	       			switch(tokenflag)
-				{
-					case 0:
-						method=clientheadtoken;
-					case 1:
-						urlroute=clientheadtoken;
-				}
-				clientheadtoken=strtok(NULL," ");
-                       	        tokenflag++;
-			}
+		int *ptr=&clientSocket;
 
-			printf("\nThe urlroute is :%s\n",urlroute);
+		pthread_create (&request_thread,NULL,handle_http_request,(void *)ptr);
 
-                	setHttpHeader(httpHeader,urlroute,route);
-			send(clientSocket,httpHeader,sizeof(httpHeader),0);
-			//printf("%d\n",clientSocket);
-			close(clientSocket);
-			//printf("\nclient socket closed/n");
-			exit(0);
-		}
-
-		else if(childid>0)
-			wait(NULL);
-
-                httpHeader[0]='\0';
-                strcpy(httpHeader,"HTTP/1.1 200 OK \r\n\n");
 	}
 	return 0;
 }
@@ -150,3 +158,5 @@ void report(struct sockaddr_in *serverAddress)
 		printf("It doesnt work");
 	printf("\n\nServer Listening on http://%s:%s\n",hostBuffer,serviceBuffer);
 }
+
+
