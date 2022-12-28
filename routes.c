@@ -8,6 +8,7 @@ struct Route * initroute(char* key,char* value){
 	temp->value=value;
 	temp->left=NULL;
 	temp->right=NULL;
+	return temp;
 }
 
 struct Route * add(struct Route * root,char* key,char* value){
@@ -19,6 +20,7 @@ struct Route * add(struct Route * root,char* key,char* value){
 		root->right=add(root->right,key,value);
 	else
 		root->left=add(root->left,key,value);
+	return  root;
 }
 
 struct Route * search(struct Route * root,char* key){

@@ -12,41 +12,32 @@
 #include<sys/wait.h>
 #include "routes.h"
 #include<pthread.h>
+#include <fcntl.h>
+#include <sys/sendfile.h>
+
+
 #define SIZE 1024
 #define BACKLOG 10
+
 
 struct sockaddr_in serverAddress;
 char client_msg[8000] ="";
 int serverSocket;
-char httpHeader[8000]="HTTP/1.1 200 OK\r\n\n";
+char httpHeader[]="HTTP/1.1 200 OK\r\n";
+char content_type_text_html[] = "Content-Type: text/html\r\n";
+char content_type_text_css[] = "Content-Type: text/css\r\n";
+char content_type_image_jpg[] = "Content-Type: image/jpeg\r\n";
+char content_type_image_gif[] = "Content-Type: image/gif\r\n";
+char content_type_image_png[] = "Content-Type: image/png\r\n";
+char content_length[] = "Content-Length:";
 void report(struct sockaddr_in *serverAddress);
 void serverInit();
 void *handle_http_request(void* arg);
 struct Route * route;
-//MATCH THE FILE WITH THE URL
-void setHttpHeader(char httpHeader[],char * urlroute,struct Route *jk)
-{
-	char *r=(urlroute+1);
-	FILE *htmlData;
-	struct Route* destination = search(jk,urlroute);
-	
-	//WHEN  FILE IS NOT PRESENT
-	if(destination == NULL)
-		htmlData=fopen("error.html","r");
-	
-	else
-		htmlData=fopen(destination->value,"r");
 
-	char line[120];
-	char respData[8000]="";
+void send_image(char *,char *,int);
+void send_resp(char* ,int);
 
-	//PASSING THE DATA INTO THE HTTPHEADER
-        while(fgets(line,120,htmlData)!=0)
-		strcat(respData,line);
-
-	strcat(httpHeader, respData);
-	fclose(htmlData);
-}
 
 void serverInit()
 {
@@ -92,26 +83,111 @@ void *handle_http_request(void *arg)
 				urlroute=clientheadtoken;
 		}
 		clientheadtoken=strtok(NULL," ");
-                 tokenflag++;
+                tokenflag++;
 	}
 
 	printf("\nThe urlroute is :%s\n",urlroute);
         if(strcmp(urlroute,"/favicon.ico")!=0){
-        	setHttpHeader(httpHeader,urlroute,route);
-		send(client_Socket,httpHeader,sizeof(httpHeader),0);
-		printf("%s\n",httpHeader);
+		struct Route* destination = search(route,urlroute);
+        	
+		if(destination!=NULL)
+		{
+			char *filename=destination->value;
+			int i=0;
+			for(;filename[i]!='.';i++);
+			i++;
+			char *extension=filename+i;
+			printf("%s\n",extension);
+			if((strcmp(extension,"jpg")==0) || (strcmp(extension,"jpeg")==0) || (strcmp(extension,"gif")==0))
+				send_image(filename,extension,client_Socket);
+			else
+				send_resp(filename,client_Socket);
+		}
+		else
+			send_resp("error.html",client_Socket);
 	}
-	//printf("%d\n",clientSocket);
-	close(client_Socket);
-
-	bzero(httpHeader,8000);
-       // httpHeader[0]='\0';
-        strcpy(httpHeader,"HTTP/1.1 200 OK \r\n\n");
 
 }
+
+void send_image(char *file_name,char *extension,int client_socket)
+{
+   int ffpr;
+    FILE *fpr;
+    char buff[100];
+
+    ffpr = open(file_name, O_RDONLY);
+
+    fpr = fopen(file_name, "rb");
+    int file_size = 100000;
+
+    // help to find the size of the file
+    if (fpr != NULL)
+    {
+        fseek(fpr, 0, SEEK_END);
+        file_size = ftell(fpr);
+        fseek(fpr, 0, SEEK_SET);
+    }
+
+    //sending image with proper extension to web browser
+    if(strcmp(extension,"png") == 0)
+    {
+        sprintf(buff, "%s%s\r\n", httpHeader, content_type_image_png);
+    }
+    else if(strcmp(extension,"jpeg") == 0)
+    {
+        sprintf(buff, "%s%s\r\n", httpHeader, content_type_image_jpg);
+    }
+    else if(strcmp(extension,"gif") == 0)
+    {
+        sprintf(buff, "%s%s\r\n", httpHeader, content_type_image_gif);
+    }
+
+  //      sprintf(buff, "%s%s\r\n", response_202, content_type_image_jpg);
+
+    // sending 202 response to web browser
+    send(client_socket, buff, strlen(buff), 0);
+
+    // sendfile is use to copy data from one descriptor to another
+    sendfile(client_socket, ffpr, NULL, file_size);
+
+    // close file descriptor
+    close(ffpr);
+
+    // closing file
+    fclose(fpr); 
+
+    close(client_socket);
+}
+
+
+void send_resp(char* file_name,int client_socket)
+{
+	printf("inside sendresp\n");
+	FILE *fpr;
+   	char get[200] = {0};
+	char send_buff[200]="";
+	printf("\n filename:%s\n",file_name);
+	fpr = fopen(file_name, "r");
+
+        // concatenate the 200 status to send buffer
+        sprintf(send_buff, "%s%s\r\n\r\n", httpHeader, content_type_text_html);
+
+        // coping the request file data into the send buffer
+        while (fgets(get, 200, (FILE *)fpr) != 0)
+        {
+            strcat(send_buff, get);
+        }
+	printf("%s\n",send_buff);
+	send(client_socket, send_buff, strlen(send_buff), 0);
+
+    	// closing the file
+    	fclose(fpr);
+
+	close(client_socket);
+}
+
 int main(void)
 {
-	pid_t childid;
 
 	serverInit();
 
@@ -120,9 +196,13 @@ int main(void)
 	 route = initroute("/","index.html");
 
 	//ADD YOUR ROUTE HERE
-	add(route,"/hi","hi.html");
+	route=add(route,"/hi","hi.html");
 
+	route=add(route,"/cat","cat.jpeg");
 
+	route=add(route,"/index","index.html");
+       
+	inorder(route);
 	while(1)
 	{
 		client_msg[0] ='\0';
