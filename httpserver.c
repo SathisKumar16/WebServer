@@ -18,6 +18,7 @@
 
 #define SIZE 1024
 #define BACKLOG 10
+#define PORT 6969
 
 
 struct sockaddr_in serverAddress;
@@ -37,6 +38,7 @@ struct Route * route;
 
 void send_image(char *,char *,int);
 void send_resp(char* ,int);
+void send_browser(char*,int);
 
 
 void serverInit()
@@ -45,7 +47,7 @@ void serverInit()
 
 	//struct sockaddr_in serverAddress;
 	serverAddress.sin_family=AF_INET;
-	serverAddress.sin_port=htons(8001);
+	serverAddress.sin_port=htons(PORT);
 	serverAddress.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
 
 	bind(
@@ -68,6 +70,9 @@ void *handle_http_request(void *arg)
 	read(client_Socket,client_msg,8000);
 	char *method="";
 	char *urlroute="";
+	printf("\nclientmsg:%s\n",client_msg);
+	int msgsize=strlen(client_msg);
+        printf("\n msgsize:%d\n",msgsize);
 	char *client_httpheader=strtok(client_msg,"\n");
 	printf("\n clienthttpheader: %s\n",client_httpheader);
         char *clientheadtoken=strtok(client_httpheader," ");
@@ -87,9 +92,33 @@ void *handle_http_request(void *arg)
 	}
 
 	printf("\nThe urlroute is :%s\n",urlroute);
-        if(strcmp(urlroute,"/favicon.ico")!=0){
-		struct Route* destination = search(route,urlroute);
-        	
+        if((strcmp(urlroute,"/favicon.ico")!=0) && (strcmp(method,"GET")==0)){
+		printf("\nentered if for get\n");
+		/*struct Route* destination = search(route,urlroute);
+		if(destination!=NULL)
+		{
+			char *filename=destination->value;
+			int i=0;
+			for(;filename[i]!='.';i++);
+			i++;
+			char *extension=filename+i;
+			printf("%s\n",extension);
+			if((strcmp(extension,"jpg")==0) || (strcmp(extension,"jpeg")==0) || (strcmp(extension,"gif")==0))
+				send_image(filename,extension,client_Socket);
+			else
+				send_resp(filename,client_Socket);
+		}
+		else
+			send_resp("error.html",client_Socket);*/
+		send_browser(urlroute,client_Socket);
+	}
+	else if((strcmp(urlroute,"/favicon.ico")!=0) && (strcmp(method,"POST")==0))
+		send_browser(urlroute,client_Socket);
+
+}
+void send_browser(char* urlroute,int client_Socket)
+{
+	struct Route* destination = search(route,urlroute);
 		if(destination!=NULL)
 		{
 			char *filename=destination->value;
@@ -105,10 +134,8 @@ void *handle_http_request(void *arg)
 		}
 		else
 			send_resp("error.html",client_Socket);
-	}
 
 }
-
 void send_image(char *file_name,char *extension,int client_socket)
 {
    int ffpr;
@@ -164,8 +191,8 @@ void send_resp(char* file_name,int client_socket)
 {
 	printf("inside sendresp\n");
 	FILE *fpr;
-   	char get[200] = {0};
-	char send_buff[200]="";
+   	char get[1000] = {0};
+	char send_buff[2000]="";
 	printf("\n filename:%s\n",file_name);
 	fpr = fopen(file_name, "r");
 
@@ -173,7 +200,7 @@ void send_resp(char* file_name,int client_socket)
         sprintf(send_buff, "%s%s\r\n\r\n", httpHeader, content_type_text_html);
 
         // coping the request file data into the send buffer
-        while (fgets(get, 200, (FILE *)fpr) != 0)
+        while (fgets(get, 1000, (FILE *)fpr) != 0)
         {
             strcat(send_buff, get);
         }
@@ -201,7 +228,9 @@ int main(void)
 	route=add(route,"/cat","cat.jpeg");
 
 	route=add(route,"/index","index.html");
-       
+
+        route=add(route,"/form","form.html");
+
 	inorder(route);
 	while(1)
 	{
