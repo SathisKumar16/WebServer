@@ -93,23 +93,6 @@ void *handle_http_request(void *arg)
 
 	printf("\nThe urlroute is :%s\n",urlroute);
         if((strcmp(urlroute,"/favicon.ico")!=0) && (strcmp(method,"GET")==0)){
-		printf("\nentered if for get\n");
-		/*struct Route* destination = search(route,urlroute);
-		if(destination!=NULL)
-		{
-			char *filename=destination->value;
-			int i=0;
-			for(;filename[i]!='.';i++);
-			i++;
-			char *extension=filename+i;
-			printf("%s\n",extension);
-			if((strcmp(extension,"jpg")==0) || (strcmp(extension,"jpeg")==0) || (strcmp(extension,"gif")==0))
-				send_image(filename,extension,client_Socket);
-			else
-				send_resp(filename,client_Socket);
-		}
-		else
-			send_resp("error.html",client_Socket);*/
 		send_browser(urlroute,client_Socket);
 	}
 	else if((strcmp(urlroute,"/favicon.ico")!=0) && (strcmp(method,"POST")==0))
