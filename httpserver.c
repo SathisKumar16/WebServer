@@ -1,3 +1,6 @@
+
+
+//INCLUDE SECTION
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
@@ -16,11 +19,12 @@
 #include <sys/sendfile.h>
 
 
+//MACRO'S DEFTINITION
 #define SIZE 1024
 #define BACKLOG 10
 #define PORT 6969
 
-
+//GLOBAL DECLARATION AND FUNCTIONS
 struct sockaddr_in serverAddress;
 char client_msg[8000] ="";
 int serverSocket;
@@ -39,13 +43,14 @@ struct Route * route;
 void send_image(char *,char *,int);
 void send_resp(char* ,int);
 void send_browser(char*,int);
+void post_msgsave(char*);
 
-
+//SERVER IS INITIALIZED
 void serverInit()
 {
+	//server socket creation
 	serverSocket=socket(AF_INET,SOCK_STREAM,0);
 
-	//struct sockaddr_in serverAddress;
 	serverAddress.sin_family=AF_INET;
 	serverAddress.sin_port=htons(PORT);
 	serverAddress.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
@@ -56,6 +61,7 @@ void serverInit()
 	sizeof(serverAddress)
 	);
 
+	//whether server listens or not
 	int listening=listen(serverSocket,BACKLOG);
 	if(listening<0){
 		printf("Error: The server is not listening.\n");
@@ -64,17 +70,18 @@ void serverInit()
 	report(&serverAddress);
 }
 
+//TO HANDLE THE GET AND POST METHORD
 void *handle_http_request(void *arg)
 {
 	int client_Socket= *((int *)arg);
 	read(client_Socket,client_msg,8000);
 	char *method="";
 	char *urlroute="";
-	printf("\nclientmsg:%s\n",client_msg);
-	int msgsize=strlen(client_msg);
-        printf("\n msgsize:%d\n",msgsize);
+	char copy[2000]="";
+	strcpy(copy,client_msg);
+
+	//parsing the request to find the method  url 
 	char *client_httpheader=strtok(client_msg,"\n");
-	printf("\n clienthttpheader: %s\n",client_httpheader);
         char *clientheadtoken=strtok(client_httpheader," ");
 	int tokenflag=0;
 
@@ -91,16 +98,21 @@ void *handle_http_request(void *arg)
                 tokenflag++;
 	}
 
-	printf("\nThe urlroute is :%s\n",urlroute);
+	//checking what type of method the request is 
         if((strcmp(urlroute,"/favicon.ico")!=0) && (strcmp(method,"GET")==0)){
 		send_browser(urlroute,client_Socket);
 	}
 	else if((strcmp(urlroute,"/favicon.ico")!=0) && (strcmp(method,"POST")==0))
+	{
+		post_msgsave(copy);
 		send_browser(urlroute,client_Socket);
-
+	}
 }
+
+//DIFFERENTIATES IMAGES AND DOCUMENT
 void send_browser(char* urlroute,int client_Socket)
 {
+	//check whether the url route given is valid
 	struct Route* destination = search(route,urlroute);
 		if(destination!=NULL)
 		{
@@ -109,7 +121,6 @@ void send_browser(char* urlroute,int client_Socket)
 			for(;filename[i]!='.';i++);
 			i++;
 			char *extension=filename+i;
-			printf("%s\n",extension);
 			if((strcmp(extension,"jpg")==0) || (strcmp(extension,"jpeg")==0) || (strcmp(extension,"gif")==0))
 				send_image(filename,extension,client_Socket);
 			else
@@ -119,9 +130,12 @@ void send_browser(char* urlroute,int client_Socket)
 			send_resp("error.html",client_Socket);
 
 }
+
+
+//SENDS IMAGE TO THE CLIENT SOCKET
 void send_image(char *file_name,char *extension,int client_socket)
 {
-   int ffpr;
+    int ffpr;
     FILE *fpr;
     char buff[100];
 
@@ -130,7 +144,7 @@ void send_image(char *file_name,char *extension,int client_socket)
     fpr = fopen(file_name, "rb");
     int file_size = 100000;
 
-    // help to find the size of the file
+    //help to find the size of the file
     if (fpr != NULL)
     {
         fseek(fpr, 0, SEEK_END);
@@ -152,60 +166,88 @@ void send_image(char *file_name,char *extension,int client_socket)
         sprintf(buff, "%s%s\r\n", httpHeader, content_type_image_gif);
     }
 
-  //      sprintf(buff, "%s%s\r\n", response_202, content_type_image_jpg);
 
-    // sending 202 response to web browser
+    //sending 202 response to web browser
     send(client_socket, buff, strlen(buff), 0);
 
-    // sendfile is use to copy data from one descriptor to another
+    //sendfile is use to copy data from one descriptor to another
     sendfile(client_socket, ffpr, NULL, file_size);
 
-    // close file descriptor
+    //close file descriptor
     close(ffpr);
 
-    // closing file
+    //closing file
     fclose(fpr); 
 
+    //closing the cliwnt socket
     close(client_socket);
 }
 
-
+//SENDS DOCUMENT TO THE CLIENT SOCKET
 void send_resp(char* file_name,int client_socket)
 {
-	printf("inside sendresp\n");
+
 	FILE *fpr;
    	char get[1000] = {0};
 	char send_buff[2000]="";
-	printf("\n filename:%s\n",file_name);
+
+	//opening the requested file to send
 	fpr = fopen(file_name, "r");
 
-        // concatenate the 200 status to send buffer
         sprintf(send_buff, "%s%s\r\n\r\n", httpHeader, content_type_text_html);
 
-        // coping the request file data into the send buffer
+        //coping the request file data into the send buff
         while (fgets(get, 1000, (FILE *)fpr) != 0)
         {
             strcat(send_buff, get);
         }
-	printf("%s\n",send_buff);
+
 	send(client_socket, send_buff, strlen(send_buff), 0);
 
-    	// closing the file
     	fclose(fpr);
 
 	close(client_socket);
 }
 
-int main(void)
+//THE POST DATA IS SRORED IN THE SERVER AS FILE
+void post_msgsave(char *copy)
 {
 
+	//THE POST MESSAGE STARTS AFTER \r\n\r\n
+	int i=0;
+	while(1)
+	{
+		 if (*(copy+i) == '\r' && *(copy + 1+i) == '\n' && *(copy + 2+i) == '\r' && *(copy + 3+i) == '\n')
+       		 {
+            		break;
+        	 }
+		i++;
+	}
+	//stored only the post data 
+	char *postmsg=copy+i;
+
+	//opening a dile and storing the content
+	FILE *ptr;
+	ptr=fopen("data","w");
+	for (int i = 0; postmsg[i] != '\0'; i++)
+        {
+            putc((int)postmsg[i], ptr);
+        }
+	fclose(ptr);
+
+}
+
+
+int main()
+{
+
+	//server is initialized
 	serverInit();
 
-	//INITIALIZING THE ROUTE
-	//struct Route *
-	 route = initroute("/","index.html");
+	//initializing the route
+	route = initroute("/","index.html");
 
-	//ADD YOUR ROUTE HERE
+	//add your route here--------------------------------------------------
 	route=add(route,"/hi","hi.html");
 
 	route=add(route,"/cat","cat.jpeg");
@@ -214,13 +256,21 @@ int main(void)
 
         route=add(route,"/form","form.html");
 
-	inorder(route);
+	route=add(route,"/upload","uploadfile.html");
+
+
+	//-----------------------------------------------------------------------
+
+
 	while(1)
 	{
 		client_msg[0] ='\0';
 
 	        int clientSocket =accept(serverSocket, NULL,NULL);
 
+		printf("\naccepted\n");
+
+		//Creating the thread
 		pthread_t request_thread;
 
 		int *ptr=&clientSocket;
@@ -250,5 +300,3 @@ void report(struct sockaddr_in *serverAddress)
 		printf("It doesnt work");
 	printf("\n\nServer Listening on http://%s:%s\n",hostBuffer,serviceBuffer);
 }
-
-
