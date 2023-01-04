@@ -76,28 +76,28 @@ void *handle_http_request(void *arg)
 {
 	int client_Socket= *((int *)arg);
 	read(client_Socket,client_msg,8000);
-	char *method="";
-	char *urlroute="";
+	char method[20]="";
+	char urlroute[20]="";
 	char copy[2000]="";
+	char firstline[200]={0};
 	strcpy(copy,client_msg);
-
 	//parsing the request to find the method  url 
-	char *client_httpheader=strtok(client_msg,"\n");
-        char *clientheadtoken=strtok(client_httpheader," ");
-	int tokenflag=0;
-
-	while(clientheadtoken!=NULL)
-	{
-	        switch(tokenflag)
-		{
-			case 0:
-				method=clientheadtoken;
-			case 1:
-				urlroute=clientheadtoken;
-		}
-		clientheadtoken=strtok(NULL," ");
-                tokenflag++;
+	int i=0;
+        while (client_msg[i] != ' ')
+        {
+		*(method+i)=client_msg[i];
+		i++;
 	}
+	i++;
+	int j=0;
+	while (client_msg[i] != ' ')
+	{
+		*(urlroute+j)=client_msg[i];
+		i++;
+		j++;
+	}
+	printf("\nmethod:%s\n",method);
+	printf("\nurlroute:%s\n",urlroute);
 
 	//checking what type of method the request is 
         if((strcmp(urlroute,"/favicon.ico")!=0) && (strcmp(method,"GET")==0)){
