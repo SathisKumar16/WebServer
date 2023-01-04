@@ -28,6 +28,7 @@
 struct sockaddr_in serverAddress;
 char client_msg[8000] ="";
 int serverSocket;
+char error_404[] = "HTTP/1.1 404 Not Found\r\n";
 char httpHeader[]="HTTP/1.1 200 OK\r\n";
 char content_type_text_html[] = "Content-Type: text/html\r\n";
 char content_type_text_css[] = "Content-Type: text/css\r\n";
@@ -126,9 +127,10 @@ void send_browser(char* urlroute,int client_Socket)
 			else
 				send_resp(filename,client_Socket);
 		}
-		else
-			send_resp("error.html",client_Socket);
-
+		else{
+			send(client_Socket,error_404,strlen(error_404),0);
+			close(client_Socket);
+		}
 }
 
 
